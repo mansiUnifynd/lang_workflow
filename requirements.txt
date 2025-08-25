@@ -1,0 +1,5 @@
+langchain_core==0.3.74
+langchain_mcp_adapters==0.1.9
+langchain_openai==0.3.31
+langgraph==0.6.6
+typing_extensions==4.14.1
