@@ -12,10 +12,7 @@ import subprocess
 from typing import TypedDict, Annotated
 import operator
 
-from dotenv import load_dotenv
 
-# Load .env file
-load_dotenv()
 
 
 # ----------------------------
@@ -29,14 +26,14 @@ class AppState(TypedDict):
 # ----------------------------
 # 2. Environment Setup
 # ----------------------------
-api_key = os.getenv("OPENAI_API_KEY")
-base_url = os.getenv("OPENAI_BASE_URL")
 
+os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
+
+    # Initialize model (via OpenRouter)
 model = ChatOpenAI(
-    model="google/gemini-2.5-pro",
+    model="moonshotai/kimi-k2:free",
     temperature=0.7,
-    api_key=api_key,
-    base_url=base_url,
 )
 
 client = MultiServerMCPClient(
@@ -44,15 +41,6 @@ client = MultiServerMCPClient(
         "Figma Dev Mode MCP": {
             "url": "http://127.0.0.1:3845/mcp",
             "transport": "streamable_http",
-        }, 
-        "html.to.design": {
-            "command": "uvx",
-            "args": [
-                "mcp-proxy",
-                "--transport", "streamablehttp",
-                "https://h2d-mcp.divriots.com/8d88243f-6717-4fbc-a399-3194e93a1955/mcp"
-            ],
-            "transport": "stdio"
         }
     }
 )
@@ -71,10 +59,11 @@ async def setup_tools():
 
 # Node: call_model
 async def call_model(state: AppState) -> AppState:
-        messages = state["messages"]
-        response = await model_with_tools.ainvoke(messages)
-        # print(f"AI model response in call_model: {response.content}")
-        return {"messages": messages + [response]}
+    messages = state["messages"]
+    print("\n\n🤖 Calling AI model with messages:\n\n", messages[-1])
+    response = await model_with_tools.ainvoke(messages)
+    print(f"\n\nn🤖 🤖 🤖 🤖 🤖 🤖 🤖AI model response in call_model🤖 🤖 🤖 🤖 🤖 🤖: {response.content}")
+    return {"messages": messages + [response]}
 
 
 
@@ -82,42 +71,68 @@ async def call_model(state: AppState) -> AppState:
 def should_continue(state: AppState):
     messages = state["messages"]
     last_message = messages[-1]
+    print("\n\n🔍 🔍 🔍 🔍 🔍 Checking which node to go to next 🔍 🔍 🔍 🔍 🔍 \n\n", last_message)
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
-    elif hasattr(messages, "figma"):
-        return "generate_theme"
-    return END
-
-
+    return "generate_theme"
 
 # Node: generate_theme
 async def generate_theme(state: AppState) -> AppState:
-    """Generate Shopify theme files from Figma design."""
-    messages = state["messages"]
-    figma_url = next((msg.content for msg in messages if "figma.com" in msg.content), None)
 
-    if not figma_url:
-        error_msg = "❌ No Figma URL found in the conversation."
+    """Generate Shopify theme files by converting raw AI/tool output into Liquid format."""
+    messages = state["messages"]
+
+    # ✅ Get the latest AI response (after tool outputs are passed back into call_model)
+    # last_ai_msg = next((msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None)
+    last_ai_msg = messages[-2]
+    last_last_msg = messages[-1]
+    print(f"📝 📝 📝 📝 📝 📝 📝 📝 📝 Latest AI message for theme generation:📝 📝 📝 📝 📝 📝 📝\n{last_ai_msg.content}")
+    print(f"📝 📝 📝 📝 📝 📝 📝 📝 📝 Last user message before theme generation:📝 📝 📝 📝 📝 📝 📝\n{last_last_msg.content}")
+    if not last_ai_msg or not last_ai_msg.content:
+        error_msg = "❌ No AI response found with theme generation content."
         print(error_msg)
         state["messages"].append(AIMessage(content=error_msg))
         return state
 
-    prompt = (
-        f"Using the Figma design at {figma_url}, analyze the design and generate Shopify theme files in Liquid format. "
-        "Include at least templates/index.liquid, sections/hero.liquid, assets/style.css, and assets/script.js. "
-        "Do not generate React, JSX, or any non-Shopify code. "
-        "Return a JSON dictionary with file paths as keys and file contents as values. "
-        "Ensure compatibility with Shopify's theme structure. "
-        "Also include config/settings_schema.json."
+    raw_code = last_ai_msg.content.strip()
+    print(f"📝 Using latest AI content for theme generation:\n{raw_code}")
+
+    prompt = f"""
+        You are a Shopify theme generator.
+        The following is React/JSX code or structured UI markup:
+
+        ---
+        {raw_code}
+        ---
+
+        Convert this into a **Shopify theme** format with:
+        - Liquid templates in `layout/`, `sections/`, `snippets/`.
+        - Config file in `config/settings_schema.json`.
+        - Any CSS/JS into `assets/`.
+
+        Return the result as valid JSON:
+        {{
+          "layout/theme.liquid": "...",
+          "sections/header.liquid": "...",
+          "sections/footer.liquid": "...",
+          "config/settings_schema.json": "...",
+          "assets/style.css": "...",
+          "assets/script.js": "..."
+        }}
+    """
+
+    # messages.append(HumanMessage(content=prompt))
+    # response = await model_with_tools.ainvoke(messages)
+    llm = ChatOpenAI(
+        model="moonshotai/kimi-k2:free",
+        temperature=0.7,
     )
+    response = llm([HumanMessage(content=prompt)])
+    result = response.content.strip()
 
-    messages.append(HumanMessage(content=prompt))
-    response = await model_with_tools.ainvoke(messages)
-
-
-    print(f"📝 AI model raw response: {response}")
-    print(f"📝 AI model raw response: {response.content}")
-
+    # print(f"📝 AI model RAW RESPONSE: {response.content}")
+    print(f"📝 AI model RAW RESPONSE: {result}")
+    
     if response.content:
         try:
             raw_content = response.content.strip()
@@ -182,7 +197,6 @@ def push_theme(state: AppState) -> AppState:
         print("Theme directory does not exist, using default directory")
         theme_dir = "/Users/macbookair-unifynd/langgraph-workflow/shopify-theme"
     cmd = ["shopify", "theme", "push", "--store", store_name]
-
     try:
         result = subprocess.Popen(cmd, cwd=theme_dir)
         result.wait()
@@ -196,7 +210,6 @@ def push_theme(state: AppState) -> AppState:
         print(e.stderr)
 
     return state
-
 
 # ----------------------------
 # 4. Helper: Save theme files
@@ -212,9 +225,10 @@ def save_theme_files(theme_files: Dict[str, str], base_dir: str = "theme"):
 
 
 # ----------------------------
-# 5. Main Entry
+# 5. Build Graph (top-level export for langgraph.json)
 # ----------------------------
-async def main():
+# --- Build Graph for langgraph.json ---
+async def setup_graph():
     global model_with_tools
     tools = await setup_tools()
 
@@ -228,17 +242,33 @@ async def main():
     builder.add_node("call_model", call_model)
     builder.add_node("tools", tool_node)
     builder.add_node("generate_theme", generate_theme)
-    builder.add_node("push_theme", push_theme)  
+    builder.add_node("push_theme", push_theme)
 
     builder.add_edge(START, "call_model")
-    builder.add_conditional_edges("call_model", should_continue)
+
+    # single conditional edge definition
+    builder.add_conditional_edges(
+        "call_model",
+        should_continue,
+        {
+            "tools": "tools",
+            "generate_theme": "generate_theme",
+            END: END,
+        }
+    )
+
     builder.add_edge("tools", "call_model")
     builder.add_edge("generate_theme", "push_theme")
     builder.add_edge("push_theme", END)
 
-    graph = builder.compile()
+    return builder.compile()
 
-    # --- Interactive loop ---
+graph = asyncio.run(setup_graph())
+
+# ----------------------------
+# 6. Interactive Main (optional CLI usage)
+# ----------------------------
+async def main():
     chat_history = []
 
     while True:
@@ -248,14 +278,13 @@ async def main():
             break
 
         chat_history.append(HumanMessage(content=user_query))
-
         result = await graph.ainvoke({"messages": chat_history, "theme_files": {}})
+        print("\n\n Result from the graph : ", result)
 
-        # Append assistant reply
         assistant_msg = result["messages"][-1]
         chat_history.append(assistant_msg)
 
-        print("Assistant:", assistant_msg.content)
+        print("\n\nAssistant:", assistant_msg.content)
 
 
 if __name__ == "__main__":
