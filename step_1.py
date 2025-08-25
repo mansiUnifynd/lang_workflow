@@ -11,7 +11,10 @@ from langchain_core.messages import HumanMessage, AIMessage
 import subprocess
 from typing import TypedDict, Annotated
 import operator
+from dotenv import load_dotenv
 
+# Load .env file
+load_dotenv()
 
 
 
@@ -30,7 +33,6 @@ class AppState(TypedDict):
 api_key = os.getenv("OPENAI_API_KEY")
 base_url = os.getenv("OPENAI_BASE_URL")
 
-    # Initialize model (via OpenRouter)
 model = ChatOpenAI(
     model="google/gemini-2.5-pro",
     temperature=0.7,
@@ -62,6 +64,7 @@ async def setup_tools():
 # Node: call_model
 async def call_model(state: AppState) -> AppState:
         messages = state["messages"]
+        print(f"Messages: {messages}")
         response = await model_with_tools.ainvoke(messages)
         # print(f"AI model response in call_model: {response.content}")
         return {"messages": messages + [response]}
@@ -71,6 +74,7 @@ async def call_model(state: AppState) -> AppState:
 # Branch: should_continue
 def should_continue(state: AppState):
     messages = state["messages"]
+    print(f"Messages: {messages}")
     last_message = messages[-1]
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
@@ -80,6 +84,7 @@ def should_continue(state: AppState):
 async def generate_theme(state: AppState) -> AppState:
     """Generate Shopify theme files from Figma design."""
     messages = state["messages"]
+    print(f"Messages: {messages}")
     figma_url = next((msg.content for msg in messages if "figma.com" in msg.content), None)
 
     if not figma_url:
@@ -160,6 +165,8 @@ async def generate_theme(state: AppState) -> AppState:
 
 # Node to push theme to shopify
 def push_theme(state: AppState) -> AppState:
+    messages = state["messages"]
+    print(f"Messages: {messages}")
     store_name = "trestingpqr"
     theme_dir = os.path.join(os.getcwd(), "theme")
     if not os.path.exists(theme_dir):

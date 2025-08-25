@@ -18,7 +18,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-
 # ----------------------------
 # 1. AppState
 # ----------------------------
@@ -74,6 +73,7 @@ async def setup_tools():
 async def call_model(state: AppState) -> AppState:
         messages = state["messages"]
         response = await model_with_tools.ainvoke(messages)
+        # print(f"AI model response in call_model: {response.content}")
         return {"messages": messages + [response]}
 
 
@@ -84,7 +84,11 @@ def should_continue(state: AppState):
     last_message = messages[-1]
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
-    return "generate_theme"
+    elif hasattr(messages, "figma"):
+        return "generate_theme"
+    return END
+
+
 
 # Node: generate_theme
 async def generate_theme(state: AppState) -> AppState:
@@ -193,6 +197,7 @@ def push_theme(state: AppState) -> AppState:
 
     return state
 
+
 # ----------------------------
 # 4. Helper: Save theme files
 # ----------------------------
@@ -255,7 +260,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
 
 
