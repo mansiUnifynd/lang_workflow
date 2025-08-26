@@ -27,13 +27,14 @@ class AppState(TypedDict):
 # 2. Environment Setup
 # ----------------------------
 
-os.environ["OPENAI_API_KEY"] = "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"
-os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
+api_key = os.getenv("OPENAI_API_KEY")
+base_url = os.getenv("OPENAI_BASE_URL")
 
-    # Initialize model (via OpenRouter)
 model = ChatOpenAI(
     model="moonshotai/kimi-k2:free",
     temperature=0.7,
+    api_key=api_key,
+    base_url=base_url,
 )
 
 client = MultiServerMCPClient(
@@ -124,8 +125,10 @@ async def generate_theme(state: AppState) -> AppState:
     # messages.append(HumanMessage(content=prompt))
     # response = await model_with_tools.ainvoke(messages)
     llm = ChatOpenAI(
-        model="moonshotai/kimi-k2:free",
-        temperature=0.7,
+    model="moonshotai/kimi-k2:free",
+    temperature=0.7,
+    api_key=api_key,
+    base_url=base_url,
     )
     response = llm([HumanMessage(content=prompt)])
     result = response.content.strip()
