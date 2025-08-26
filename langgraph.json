@@ -1,0 +1,14 @@
+{
+    "dependencies": [
+      "langchain_openai",
+      "langgraph",
+      "langchain_core",
+      "langchain_mcp_adapters",
+     " typing_extensions"
+    ],
+    "graphs": {
+      "my_workflow": "./workflow.py:graph"
+    }
+  }
+ 
+  

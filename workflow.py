@@ -42,6 +42,16 @@ client = MultiServerMCPClient(
         "Figma Dev Mode MCP": {
             "url": "http://127.0.0.1:3845/mcp",
             "transport": "streamable_http",
+        },
+
+        "html.to.design": {
+            "command": "uvx",
+            "args": [
+                "mcp-proxy",
+                "--transport", "streamablehttp",
+                "https://h2d-mcp.divriots.com/8d88243f-6717-4fbc-a399-3194e93a1955/mcp"
+            ],
+            "transport": "stdio"
         }
     }
 )
